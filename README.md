@@ -1,1 +1,1 @@
-To build, add STAND ALONE asio in /libs folder
+To build, create "libs" folder and add STAND ALONE asio in that folder
