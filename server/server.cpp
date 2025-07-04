@@ -20,6 +20,7 @@ enum class GameMsg : uint32_t
 struct sPlayerDescription
 {
 	int nUniqueID;
+	char message[256];
 };
 
 class GameServer : public olc::net::server_interface<GameMsg>

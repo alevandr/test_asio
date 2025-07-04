@@ -20,6 +20,7 @@ enum class GameMsg : uint32_t
 struct sPlayerDescription
 {
 	int nUniqueID;
+	char message[256];
 };
 
 class client : olc::net::client_interface<GameMsg>
@@ -33,6 +34,7 @@ private:
 	uint32_t nPlayerID = 0;
 	sPlayerDescription descPlayer;
 	bool bWaitingForConnection = true;
+	std::mutex console_mutex; // Mutex to protect console access
 public:
 	bool OnUserCreate()
 	{
@@ -43,94 +45,85 @@ public:
 		return false;
 	}
 
-	bool OnUserUpdate(float fElapsedTime = 0.0)
+	bool OnUserUpdate()
 	{
-		// Check for incoming network messages
-		if (IsConnected())
+		while (true)
 		{
-			while (!Incoming().empty())
+			// Check for incoming network messages
+			if (IsConnected())
 			{
-				auto msg = Incoming().pop_front().msg;
+				while (!Incoming().empty())
+				{
+					auto msg = Incoming().pop_front().msg;
 
-				switch (msg.header.id)
-				{
-				case(GameMsg::Client_Accepted):
-				{
-					std::cout << "Server accepted client - you're in!\n";
-					olc::net::message<GameMsg> msg;
-					msg.header.id = GameMsg::Client_RegisterWithServer;
-					msg << descPlayer;
-					Send(msg);
-					break;
-				}
-				case(GameMsg::Client_AssignID):
-				{
-					// Server is assigning us OUR id
-					msg >> nPlayerID;
-					std::cout << "Assigned Client ID = " << nPlayerID << "\n";
-					break;
-				}
-				case(GameMsg::Game_AddPlayer):
-				{
-					sPlayerDescription desc;
-					msg >> desc;
-					mapObjects.insert_or_assign(desc.nUniqueID, desc);
-
-					if (desc.nUniqueID == nPlayerID)
+					switch (msg.header.id)
 					{
-						// Now we exist in game world
-						bWaitingForConnection = false;
+					case(GameMsg::Client_Accepted):
+					{
+						std::lock_guard<std::mutex> lock(console_mutex); // Lock before printing
+						std::cout << "Server accepted client - you're in!\n";
+						olc::net::message<GameMsg> msg;
+						msg.header.id = GameMsg::Client_RegisterWithServer;
+						msg << descPlayer;
+						Send(msg);
+						break;
 					}
-					break;
-				}
-				//case(GameMsg::Game_RemovePlayer):
-				//{
-				//	uint32_t nRemovalID = 0;
-				//	msg >> nRemovalID;
-				//	mapObjects.erase(nRemovalID);
-				//	break;
-				//}
-				case(GameMsg::Game_UpdatePlayer):
-				{
-					sPlayerDescription desc;
-					msg >> desc;
-					//std::cout << "temp: " << desc.msg<< "\n";
-					//sPlayerDescription desc;
-					//msg >> desc;
-					//mapObjects.insert_or_assign(desc.nUniqueID, desc);
-					break;
-				}
+					case(GameMsg::Client_AssignID):
+					{
+						// Server is assigning us OUR id
+						msg >> nPlayerID;
+						std::lock_guard<std::mutex> lock(console_mutex); // Lock before printing
+						std::cout << "Assigned Client ID = " << nPlayerID << "\n";
+						break;
+					}
+					case(GameMsg::Game_AddPlayer):
+					{
+						sPlayerDescription desc;
+						msg >> desc;
+						mapObjects.insert_or_assign(desc.nUniqueID, desc);
+
+						if (desc.nUniqueID == nPlayerID)
+						{
+							// Now we exist in game world
+							bWaitingForConnection = false;
+						}
+						break;
+					}
+					case(GameMsg::Game_UpdatePlayer):
+					{
+						sPlayerDescription desc;
+						msg >> desc;
+						std::lock_guard<std::mutex> lock(console_mutex); // Lock before printing
+						std::cout << "[" << desc.nUniqueID << "]: " << desc.message << "\n";
+						break;
+					}
+					}
 				}
 			}
-		}
 
-		if (bWaitingForConnection)
-		{
-			return true;
-		}
+			if (bWaitingForConnection)
+			{
+				continue;
+			}
 
-		// Control of Player Object
-		/*std::string userMsg = "";
-		while (userMsg != "exit")
+			//return true;
+		}
+	}
+	void Control()
+	{
+		while (true)
 		{
-			std::getline(std::cin, userMsg);
 			olc::net::message<GameMsg> msg;
 			msg.header.id = GameMsg::Game_UpdatePlayer;
-			msg << userMsg;
-			Send(msg);
-		}*/
-
-		olc::net::message<GameMsg> msg;
-		msg.header.id = GameMsg::Game_UpdatePlayer;
-		std::string userMsg = "";
-		//while (userMsg != "exit")
-		//{
+			std::string userMsg = "";
 			std::getline(std::cin, userMsg);
-			//mapObjects[nPlayerID].msg = userMsg;
-			msg << mapObjects[nPlayerID];
+			sPlayerDescription desc;
+			char charArray[256];
+			strcpy_s(desc.message, userMsg.c_str());
+			desc.nUniqueID = this->nPlayerID;
+			msg << desc;
 			Send(msg);
-		//}
-		return true;
+		}
 	}
 };
 
@@ -139,10 +132,12 @@ int main()
 	client demo;
 	if (demo.OnUserCreate())
 	{
-		while (1)
-		{
-			demo.OnUserUpdate();
-		}
+		//demo.OnUserUpdate();
+		//demo.Control();
+		std::thread sending(&client::Control, &demo);
+		std::thread updates(&client::OnUserUpdate, &demo);
+		sending.join();
+		updates.join();
 	}
 	return 0;
 }

@@ -72,7 +72,7 @@ namespace olc
 			friend message<T>& operator << (message<T>& msg, const DataType& data)
 			{
 				// Check that the type of the data being pushed is trivially copyable
-				//static_assert(std::is_standard_layout<DataType>::value, "Data is too complex to be pushed into vector");
+				static_assert(std::is_standard_layout<DataType>::value, "Data is too complex to be pushed into vector");
 
 				auto typ = typeid(DataType).name();
 				// Cache current size of vector, as this will be the point we insert the data
@@ -97,7 +97,7 @@ namespace olc
 			friend message<T>& operator >> (message<T>& msg, DataType& data)
 			{
 				// Check that the type of the data being pushed is trivially copyable
-				//static_assert(std::is_standard_layout<DataType>::value, "Data is too complex to be pulled from vector");
+				static_assert(std::is_standard_layout<DataType>::value, "Data is too complex to be pulled from vector");
 
 				auto typ = typeid(DataType).name();  
 				// Cache the location towards the end of the vector where the pulled data starts
