@@ -1,0 +1,14 @@
+*.suo
+*.user
+*.ncb
+*.sdf
+*.opensdf
+*.tlog
+*.json
+*.lnk
+.vs/
+Debug/
+Release/
+CodeAnalyst/
+ipch/
+libs/
